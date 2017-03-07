@@ -1,0 +1,39 @@
+---
+
+- name: check swapfile
+  stat: path=/var/swapfile get_checksum=no get_md5=no
+  register: swap_file_check
+
+- block:
+  - name: create swapfile
+    command: fallocate -l {{ swapfile_size }} /var/swapfile.tmp
+  - name: set swapfile permissions
+    file: path=/var/swapfile.tmp mode=0600
+  - name: mkswap
+    command: mkswap /var/swapfile.tmp
+  - name: mv swapfile
+    command: mv /var/swapfile.tmp /var/swapfile
+  when: not swap_file_check.stat.exists
+  rescue:
+    - shell: rm /var/swapfile.tmp 2>/dev/null || true
+
+- name: add swap to /etc/fstab
+  mount: name=none
+         src=/var/swapfile
+         fstype=swap
+         opts=sw
+         passno=0
+         dump=0
+         state=present
+
+- name: save swappiness
+  lineinfile: dest=/etc/sysctl.conf line="vm.swappiness = 10"
+  register: save_swappiness
+
+- name: enable swappiness
+  shell: sysctl -p
+  when: save_swappiness.changed
+
+- name: swapon
+  shell: swapon /var/swapfile
+  when: ansible_swaptotal_mb < 1

@@ -1,0 +1,10 @@
+---
+
+- name: Deploy clog
+  hosts: clog
+  remote_user: root
+  roles:
+    - nginx
+    - swapfile
+
+# vim:ft=ansible:

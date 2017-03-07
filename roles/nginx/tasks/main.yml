@@ -1,0 +1,64 @@
+---
+
+- name: Install nginx
+  apt: name=nginx state=latest
+
+- name: Auto-start Nginx
+  systemd: name=nginx state=started masked=no enabled=yes
+
+- name: Allow Nginx through ufw
+  ufw: name="Nginx Full" rule=allow
+
+#
+# LetEncrypt
+#
+
+- name: Make /var/www/{{ nginx_domain_name }}
+  file: path=/var/www/{{ nginx_domain_name }} state=directory
+
+- name: Check whether LE has been configured
+  stat: path=/etc/letsencrypt/live/{{ nginx_domain_name }}/privkey.pem
+  register: has_le_cert
+
+- block:
+  - name: Install letsencrypt
+    apt: name=letsencrypt state=latest
+
+  - name: Remove default nginx config
+    file: path=/etc/nginx/sites-enabled/default state=absent
+
+  - name: Install temporary nginx config for {{ nginx_domain_name }}
+    template:
+      src: templates/nginx-pre-letsencrypt.conf
+      dest: /etc/nginx/sites-enabled/{{ nginx_domain_name }}.conf
+    notify:
+      - restart nginx
+
+  - name: Create letsencrypt certificate
+    shell: letsencrypt certonly -n --webroot -w /var/www/{{ nginx_domain_name }} -m {{ letsencrypt_email }} --agree-tos -d {{ nginx_domain_name }} -d www.{{ nginx_domain_name }}
+    args:
+      creates: /etc/letsencrypt/live/{{ nginx_domain_name }}
+
+  when: not has_le_cert.stat.exists
+
+- name: Add letsencrypt cronjob for cert renewal
+  cron:
+    name: letsencrypt_renewal
+    special_time: weekly
+    job: letsencrypt renew >> /var/log/le-renew.log && service nginx reload
+
+#
+# Nginx
+#
+
+- name: Generate dhparams
+  shell: openssl dhparam -out /etc/nginx/dhparams.pem 2048
+  args:
+    creates: /etc/nginx/dhparams.pem
+
+- name: Install site nginx config for {{ nginx_domain_name }}
+  template:
+    src: templates/nginx-site.conf
+    dest: /etc/nginx/sites-enabled/{{ nginx_domain_name }}.conf
+  notify:
+    - restart nginx

@@ -1,0 +1,9 @@
+[clog]
+example.com
+
+[clog:vars]
+letsencrypt_email=you@example.com
+nginx_domain_name={{ ansible_host }}
+swapfile_size=1G
+
+# vim:ft=ansible_hosts:
