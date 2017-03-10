@@ -6,5 +6,6 @@
   roles:
     - nginx
     - swapfile
+    - clog
 
 # vim:ft=ansible:

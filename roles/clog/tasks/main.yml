@@ -1,0 +1,97 @@
+---
+
+- name: Add PG repo
+  apt_repository:
+      repo: deb http://apt.postgresql.org/pub/repos/apt/ xenial-pgdg main
+      state: present
+
+- name: Add PG key
+  apt_key:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    state: present
+
+- name: apt-get update
+  apt: update_cache=yes
+
+- name: Install PG
+  action: apt pkg={{ item }} state=installed
+  with_items:
+    - postgresql-9.6
+    - postgresql-contrib
+    - postgresql-9.6-postgis-2.3
+    - python-psycopg2
+
+- name: Setup Postgres
+  become: true
+  become_user: postgres
+  shell: |
+    createuser -s chronobase || true
+    psql "ALTER USER chronobase WITH SUPERUSER;"
+    touch /var/lib/postgresql/.chronobase-user-created
+  args:
+    creates: /var/lib/postgresql/.chronobase-user-created
+
+- name: Install misc packages
+  action: apt pkg={{ item }} state=installed
+  with_items:
+    - git-core
+    - curl
+    - zlib1g-dev
+    - build-essential
+    - libssl-dev
+    - libreadline-dev
+    - libyaml-dev
+    - libsqlite3-dev
+    - sqlite3
+    - libxml2-dev
+    - libxslt1-dev
+    - libcurl4-openssl-dev
+    - python-software-properties
+    - libffi-dev
+    - libpq-dev
+    - imagemagick
+    - redis-server
+
+- name: Create deploy user
+  user: name=deploy shell=/bin/bash
+
+- name: Copy SSH keys
+  shell: cp -r ~root/.ssh ~deploy && chown -R deploy ~deploy/.ssh
+  args:
+    creates: /home/deploy/.ssh
+
+- block:
+  - name: Clone rbenv
+    git:
+      repo: git://github.com/sstephenson/rbenv.git
+      dest: /home/deploy/.rbenv
+
+  - name: Clone ruby-build
+    git:
+      repo: git://github.com/sstephenson/ruby-build.git
+      dest: /home/deploy/.rbenv/plugins/ruby-build
+
+  - name: Setup .bashrc
+
+    blockinfile:
+      name: /home/deploy/.bash_profile
+      create: yes
+      block: |
+        export PATH="$HOME/.rbenv/bin:$PATH"
+        eval "$(rbenv init -)"
+        export PATH="$HOME/.rbenv/plugins/ruby-build/bin:$PATH"
+
+  - name: Install Ruby
+    shell: |
+      cd
+      source ~/.bash_profile
+      [[ ! -e /home/deploy/.rbenv/versions/2.3.3 ]] && rbenv install -v 2.3.3
+      rbenv global 2.2.3
+      gem install bundler
+      touch ~/.ruby-is-installed
+    args:
+      executable: /bin/bash
+      creates: /home/deploy/.ruby-is-installed
+
+  become_user: deploy
+  become: true
