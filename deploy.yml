@@ -5,6 +5,7 @@
   remote_user: root
   roles:
     - nginx
+    - redis
     - swapfile
     - clog
 

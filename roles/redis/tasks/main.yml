@@ -1,0 +1,15 @@
+---
+
+- name: Install Redis
+  apt: name=redis-server state=latest
+
+- name: Auto-start Redis
+  systemd: name=redis-server state=started masked=no enabled=yes
+
+- name: Redis password
+  lineinfile:
+    name: /etc/redis/redis.conf
+    regexp: '^(# )?requirepass.*'
+    line: 'requirepass {{ redis_password }}'
+  notify:
+    - restart redis

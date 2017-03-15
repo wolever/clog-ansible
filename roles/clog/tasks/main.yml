@@ -50,7 +50,6 @@
     - libffi-dev
     - libpq-dev
     - imagemagick
-    - redis-server
 
 - name: Create deploy user
   user: name=deploy shell=/bin/bash
